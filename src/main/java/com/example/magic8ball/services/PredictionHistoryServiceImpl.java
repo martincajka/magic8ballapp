@@ -1,10 +1,7 @@
 package com.example.magic8ball.services;
 
 import com.example.magic8ball.api.mapper.PredicationHistoryMapper;
-import com.example.magic8ball.api.model.PageResultDTO;
-import com.example.magic8ball.api.model.QuestionReqDTO;
-import com.example.magic8ball.api.model.QuestionRespDTO;
-import com.example.magic8ball.api.model.QuestionsDTO;
+import com.example.magic8ball.api.model.*;
 import com.example.magic8ball.domain.Prediction;
 import com.example.magic8ball.domain.PredictionsHistory;
 import com.example.magic8ball.exceptions.NotFoundException;
@@ -17,9 +14,8 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
+import java.util.stream.StreamSupport;
 
 @Service
 public class PredictionHistoryServiceImpl implements PredictionHistoryService {
@@ -58,26 +54,20 @@ public class PredictionHistoryServiceImpl implements PredictionHistoryService {
 
     @Override
     public QuestionRespDTO answerQuestion(QuestionReqDTO question) {
-        long entriesCount = predictionRepository.count();
-        Set<Integer> notExistingEntries = new HashSet<>();
-        int randomId = (int) (Math.random() * entriesCount) + 1;
-
-        while (notExistingEntries.size() < entriesCount) {
-            if (notExistingEntries.contains(randomId)) {
-                randomId = (int) (Math.random() * entriesCount) + 1;
-            } else {
-                notExistingEntries.add(randomId);
-                Prediction prediction = predictionRepository.findById(randomId).orElse(null);
-                if (prediction != null) {
-                    PredictionsHistory predictionsHistory = new PredictionsHistory();
-                    predictionsHistory.setQuestion(question.getQuestion());
-                    predictionsHistory.setPrediction(prediction);
-                    predictionsHistory.setCreatedAt(Instant.now().truncatedTo(ChronoUnit.MILLIS).toString());
-                    predictionHistoryRepository.save(predictionsHistory);
-                    return predicationHistoryMapper.predictionHistoryToQuestionRespDTO(predictionsHistory);
-                }
-            }
+        List<Prediction> allPredictions = StreamSupport
+                .stream(predictionRepository.findAll().spliterator(), false)
+                .toList();
+        if (allPredictions.isEmpty()) {
+            throw new NotFoundException("No predictions found");
+        } else {
+            int index = (int) (Math.random() * allPredictions.size()) + 1;
+            Prediction prediction = allPredictions.get(index);
+            PredictionsHistory predictionsHistory = new PredictionsHistory();
+            predictionsHistory.setQuestion(question.getQuestion());
+            predictionsHistory.setPrediction(prediction);
+            predictionsHistory.setCreatedAt(Instant.now().truncatedTo(ChronoUnit.MILLIS).toString());
+            predictionHistoryRepository.save(predictionsHistory);
+            return predicationHistoryMapper.predictionHistoryToQuestionRespDTO(predictionsHistory);
         }
-        throw  new NotFoundException("No predictions entries found");
     }
 }
